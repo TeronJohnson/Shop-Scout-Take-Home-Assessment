@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saved Deals</title>
+  
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .deal-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      cursor: pointer;
+      transition: box-shadow 0.2s ease, transform 0.1s ease;
+    }
+
+    .deal-card:hover {
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      transform: translateY(-2px);
+    }
+
+    .deal-title {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.25rem;
+    }
+
+    .price-current {
+      font-weight: bold;
+      font-size: 1.25rem;
+    }
+
+    .price-original {
+      text-decoration: line-through;
+      color: #64748b;
+      margin: 0 10px;
+    }
+
+    .price-discount {
+      color: #16a34a;
+      font-weight: bold;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-title {
+      margin-top: 0;
+    }
+
+    .modal-subtitle {
+      color: #64748b;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-group {
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .input-group input {
+      padding: 0.5rem;
+      width: 120px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      padding: 0.5rem 1rem;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-secondary {
+      padding: 0.5rem 1rem;
+      background: transparent;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 0.5rem;
+      font-size: 1rem;
+    }
+
+    .btn-secondary:hover {
+      background: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>My Saved Deals</h1>
+
+  <div id="deal-list"></div>
+
+  <div id="modal-root"></div>
+
+  <script>
+
+    const mockDeals = [
+      { id: 1, name: "Sony Headphones", currentPrice: 199.99, originalPrice: 349.99 },
+      { id: 2, name: "Logitech Mouse", currentPrice: 89.00, originalPrice: 99.99 },
+      { id: 3, name: "Amazon Alexa", currentPrice: 109.99, originalPrice: 149.99 },
+      { id: 4, name: "YETI Microphone", currentPrice: 28.00, originalPrice: 35.00 },
+      { id: 5, name: "Anker Portable Charger", currentPrice: 16.99, originalPrice: 25.99 }
+    ];
+
+    let currentDeals = [];
+    let isLoading = true;
+    let selectedDeal = null;
+
+
+    function renderApp() {
+      const container = document.getElementById('deal-list');
+
+      if (isLoading) {
+        container.innerHTML = '<p style="color: #64748b;">Loading latest deals...</p>';
+        return;
+      }
+
+      if (currentDeals.length === 0) {
+        container.innerHTML = '<p style="color: #64748b;">No deals available right now. Check back later!</p>';
+        return;
+      }
+
+      const htmlString = currentDeals.map(deal => {
+        const percentOff = Math.round(((deal.originalPrice - deal.currentPrice) / deal.originalPrice) * 100);
+        
+        return `
+          <div class="deal-card" onclick="openModal(${deal.id})">
+            <h3 class="deal-title">${deal.name}</h3>
+            <p>
+              <span class="price-current">$${deal.currentPrice.toFixed(2)}</span> 
+              <span class="price-original">$${deal.originalPrice.toFixed(2)}</span> 
+              <span class="price-discount">${percentOff}% OFF</span>
+            </p>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = htmlString;
+    }
+
+    function renderModal() {
+      const modalContainer = document.getElementById('modal-root');
+
+      if (!selectedDeal) {
+        modalContainer.innerHTML = '';
+        return;
+      }
+
+      modalContainer.innerHTML = `
+        <div class="modal-overlay" onclick="closeModal()">
+          <div class="modal-content" onclick="event.stopPropagation()">
+            
+            <h2 class="modal-title">Set Price Alert</h2>
+            <p class="modal-subtitle">${selectedDeal.name}</p>
+            
+            <form onsubmit="handleNotifySubmit(event)">
+              <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                Notify me when this drops below:
+              </label>
+              
+              <div class="input-group">
+                <span style="font-size: 1.1rem; color: #64748b;">$</span>
+                <input 
+                  type="number" 
+                  id="target-price" 
+                  step="0.01" 
+                  placeholder="${selectedDeal.currentPrice}" 
+                  required 
+                />
+              </div>
+              
+              <button type="submit" class="btn-primary">Save Alert</button>
+              <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+            </form>
+
+          </div>
+        </div>
+      `;
+    }
+
+    function openModal(dealId) {
+      selectedDeal = currentDeals.find(deal => deal.id === dealId);
+      renderModal();
+    }
+
+    function closeModal() {
+      selectedDeal = null;
+      renderModal();
+    }
+
+    function handleNotifySubmit(event) {
+      event.preventDefault(); 
+      const targetPrice = document.getElementById('target-price').value;
+      
+      alert(`Alert successfully set!\n\nYou will be notified when the ${selectedDeal.name} drops below $${targetPrice}.`);
+      
+      closeModal();
+    }
+
+    function fetchDeals() {
+      renderApp(); 
+
+      setTimeout(() => {
+        currentDeals = mockDeals; 
+        isLoading = false;        
+        renderApp(); 
+      }, 1500);
+    }
+
+    fetchDeals();
+
+  </script>
+</body>
+</html>
